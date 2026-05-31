@@ -245,6 +245,33 @@ public:
         data_logger_ = std::move(logger);
     }
 
+    void republishLatestMapOdomTF() {
+#ifdef ROS2
+        geometry_msgs::msg::TransformStamped transformStamped;
+#else
+        geometry_msgs::TransformStamped transformStamped;
+#endif
+        {
+            std::lock_guard<std::mutex> lock(map_odom_tf_mutex_);
+            if (!has_map_odom_tf_) {
+                return;
+            }
+            transformStamped = latest_map_odom_tf_;
+        }
+
+#ifdef ROS2
+        transformStamped.header.stamp = node_->now();
+#else
+        transformStamped.header.stamp = ros::Time::now();
+#endif
+        tf_broadcaster->sendTransform(transformStamped);
+    }
+
+    void clearLatestMapOdomTF() {
+        std::lock_guard<std::mutex> lock(map_odom_tf_mutex_);
+        has_map_odom_tf_ = false;
+    }
+
     // Forward device identity / version metadata into the binary data logger's info.txt.
     // No-op if logger is not initialized (e.g. recorddata=0).
     void update_data_logger_info(const std::string& device_id,
@@ -1370,6 +1397,7 @@ void publishRgb(capture_Image_List_t *stream) {
                     transformStamped.transform.rotation.y = msg.pose.pose.orientation.y;
                     transformStamped.transform.rotation.z = msg.pose.pose.orientation.z;
                     transformStamped.transform.rotation.w = msg.pose.pose.orientation.w;
+                    cache_map_odom_tf(transformStamped);
                     tf_broadcaster->sendTransform(transformStamped);
                     }
                     break;
@@ -1467,6 +1495,7 @@ void publishRgb(capture_Image_List_t *stream) {
                     transformStamped.transform.rotation.y = msg.pose.pose.orientation.y;
                     transformStamped.transform.rotation.z = msg.pose.pose.orientation.z;
                     transformStamped.transform.rotation.w = msg.pose.pose.orientation.w;
+                    cache_map_odom_tf(transformStamped);
                     tf_broadcaster->sendTransform(transformStamped);
                     }
                     break;
@@ -1606,6 +1635,24 @@ private:
     std::atomic<uint32_t> wcwi_index_{0};
 
     std::filesystem::path root_dir_;
+
+#ifdef ROS2
+    geometry_msgs::msg::TransformStamped latest_map_odom_tf_;
+#else
+    geometry_msgs::TransformStamped latest_map_odom_tf_;
+#endif
+    std::mutex map_odom_tf_mutex_;
+    bool has_map_odom_tf_ = false;
+
+#ifdef ROS2
+    void cache_map_odom_tf(const geometry_msgs::msg::TransformStamped& transformStamped) {
+#else
+    void cache_map_odom_tf(const geometry_msgs::TransformStamped& transformStamped) {
+#endif
+        std::lock_guard<std::mutex> lock(map_odom_tf_mutex_);
+        latest_map_odom_tf_ = transformStamped;
+        has_map_odom_tf_ = true;
+    }
 
     // Updated helper functions
     ImageConstPtr getLatestRgbImage() {

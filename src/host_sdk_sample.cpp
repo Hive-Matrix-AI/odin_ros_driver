@@ -1230,6 +1230,10 @@ static void lidar_device_callback(const lidar_device_info_t* device, bool attach
     static bool software_connect_timing = false; 
     
     if(attach == true) {
+        if (g_ros_object) {
+            g_ros_object->clearLatestMapOdomTF();
+        }
+
         #ifdef ROS2
             RCLCPP_INFO(rclcpp::get_logger("device_cb"), "Hardware connected, starting software connection...");
         #else
@@ -1864,6 +1868,9 @@ static void lidar_device_callback(const lidar_device_info_t* device, bool attach
 
         deviceConnected = false;
         deviceDisconnected = true;
+        if (g_ros_object) {
+            g_ros_object->clearLatestMapOdomTF();
+        }
         
         // Stop IMU dedicated thread
         stop_imu_thread();
@@ -2167,6 +2174,7 @@ int main(int argc, char *argv[])
             // Check for command file
             if (deviceConnected) {
                 process_command_file();
+                g_ros_object->republishLatestMapOdomTF();
             }
             
             disconnect_msg_printed = false;
@@ -2201,6 +2209,7 @@ int main(int argc, char *argv[])
             // Check for command file
             if (deviceConnected) {
                 process_command_file();
+                g_ros_object->republishLatestMapOdomTF();
             }
             
             disconnect_msg_printed = false;
